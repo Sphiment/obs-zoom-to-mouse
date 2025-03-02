@@ -972,6 +972,7 @@ function on_timer()
             -- When we finished zooming out we remove the timer
             if zoom_state == ZoomState.ZoomingOut then
                 log("Zoomed out")
+                set_crop_settings(crop_filter_info_orig)
                 zoom_state = ZoomState.None
                 should_stop_timer = true
             elseif zoom_state == ZoomState.ZoomingIn then
