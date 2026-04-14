@@ -31,6 +31,7 @@ local crop_filter_temp = nil
 local crop_filter_settings = nil
 local crop_filter_info_orig = { x = 0, y = 0, w = 0, h = 0 }
 local crop_filter_info = { x = 0, y = 0, w = 0, h = 0 }
+local zoom_from_crop = nil
 local monitor_info = nil
 local zoom_info = {
     source_size = { width = 0, height = 0 },
@@ -279,7 +280,24 @@ function lerp(v0, v1, t)
 end
 
 ---
--- Ease a time value in and out
+-- Ease a time value in (slow start, accelerates toward the end)
+---@param t number Time between 0 and 1
+---@return number
+function ease_in(t)
+    return t * t * t
+end
+
+---
+-- Ease a time value out (fast start, decelerates toward the end)
+---@param t number Time between 0 and 1
+---@return number
+function ease_out(t)
+    local u = 1 - t
+    return 1 - u * u * u
+end
+
+---
+-- Ease a time value in and out (slow start, fast middle, slow end)
 ---@param t number Time between 0 and 1
 ---@return number
 function ease_in_out(t)
@@ -840,6 +858,7 @@ function on_toggle_zoom(pressed)
                 -- To zoom out, we set the target back to whatever it was originally
                 zoom_state = ZoomState.ZoomingOut
                 zoom_time = 0
+                zoom_from_crop = { x = crop_filter_info.x, y = crop_filter_info.y, w = crop_filter_info.w, h = crop_filter_info.h }
                 locked_center = nil
                 locked_last_pos = nil
                 zoom_target = { crop = crop_filter_info_orig, c = sceneitem_crop_orig }
@@ -853,6 +872,7 @@ function on_toggle_zoom(pressed)
                 zoom_state = ZoomState.ZoomingIn
                 zoom_info.zoom_to = zoom_value
                 zoom_time = 0
+                zoom_from_crop = { x = crop_filter_info.x, y = crop_filter_info.y, w = crop_filter_info.w, h = crop_filter_info.h }
                 locked_center = nil
                 locked_last_pos = nil
                 zoom_target = get_target_position(zoom_info)
@@ -874,17 +894,24 @@ function on_timer()
         zoom_time = zoom_time + zoom_speed
 
         if zoom_state == ZoomState.ZoomingOut or zoom_state == ZoomState.ZoomingIn then
-            -- When we are doing a zoom animation (in or out) we linear interpolate the crop to the target
+            -- Animate the crop toward the target using a fixed start point and directional easing:
+            -- zoom-in uses ease_in (slow start, accelerates), zoom-out uses ease_out (fast start, settles smoothly)
             if zoom_time <= 1 then
                 -- If we have auto-follow turned on, make sure to keep the mouse in the view while we zoom
                 -- This is incase the user is moving the mouse a lot while the animation (which may be slow) is playing
                 if zoom_state == ZoomState.ZoomingIn and use_auto_follow_mouse then
                     zoom_target = get_target_position(zoom_info)
                 end
-                crop_filter_info.x = lerp(crop_filter_info.x, zoom_target.crop.x, ease_in_out(zoom_time))
-                crop_filter_info.y = lerp(crop_filter_info.y, zoom_target.crop.y, ease_in_out(zoom_time))
-                crop_filter_info.w = lerp(crop_filter_info.w, zoom_target.crop.w, ease_in_out(zoom_time))
-                crop_filter_info.h = lerp(crop_filter_info.h, zoom_target.crop.h, ease_in_out(zoom_time))
+                local eased_t
+                if zoom_state == ZoomState.ZoomingIn then
+                    eased_t = ease_in(zoom_time)
+                else
+                    eased_t = ease_out(zoom_time)
+                end
+                crop_filter_info.x = lerp(zoom_from_crop.x, zoom_target.crop.x, eased_t)
+                crop_filter_info.y = lerp(zoom_from_crop.y, zoom_target.crop.y, eased_t)
+                crop_filter_info.w = lerp(zoom_from_crop.w, zoom_target.crop.w, eased_t)
+                crop_filter_info.h = lerp(zoom_from_crop.h, zoom_target.crop.h, eased_t)
                 set_crop_settings(crop_filter_info)
             end
         else
