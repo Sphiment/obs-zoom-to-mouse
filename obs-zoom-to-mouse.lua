@@ -5,6 +5,12 @@
 --
 
 local obs = obslua
+-- API compatibility: obs_sceneitem_get/set_info was renamed to _info2 in OBS 29+
+-- and removed in later versions. Map the old names to the new ones when needed.
+if obs.obs_sceneitem_get_info == nil then
+    obs.obs_sceneitem_get_info = obs.obs_sceneitem_get_info2
+    obs.obs_sceneitem_set_info = obs.obs_sceneitem_set_info2
+end
 local ffi = require("ffi")
 local VERSION = "1.0.2"
 local CROP_FILTER_NAME = "obs-zoom-to-mouse-crop"
@@ -448,7 +454,7 @@ function release_sceneitem()
 
         if sceneitem_info_orig ~= nil then
             log("Transform info reset back to original")
-            obs.obs_sceneitem_get_info(sceneitem, sceneitem_info_orig)
+            obs.obs_sceneitem_set_info(sceneitem, sceneitem_info_orig)
             sceneitem_info_orig = nil
         end
 
